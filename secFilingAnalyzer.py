@@ -4,6 +4,24 @@ import pandas as pd
 import os
 import re
 import string
+import csv
+
+from nltk.sentiment.vader import SentimentIntensityAnalyzer as SIA
+
+# import nltk
+# nltk.download('vader_lexicon')
+
+with open('Financial Dictionary/negative_words.csv', mode='r') as infile:
+    reader = csv.reader(infile)
+    negative_words = {rows[0].lower():int(rows[1]) for rows in reader}
+
+with open('Financial Dictionary/positive_words.csv', mode='r') as infile:
+    reader = csv.reader(infile)
+    positive_words = {rows[0].lower():int(rows[1]) for rows in reader}
+
+sid = SIA()
+sid.lexicon.update(positive_words)
+sid.lexicon.update(negative_words)
 
 def count_punct(text):
     if text.strip() == "": # To take of care of all space input
@@ -44,6 +62,8 @@ def getFilings(ticker):
 
             os.makedirs(os.path.dirname(name), exist_ok=True)
 
+            sentiment = []
+
             try:
                 w = open(name, "w")
 
@@ -69,24 +89,28 @@ def getFilings(ticker):
                             w2.write(line)
                         flag = True
 
+                        pol_score = sid.polarity_scores(line)
+
+                        sentiment.append(pol_score["compound"])
+
                     if "financial statements and supplementary data" in line.lower().rstrip() or "statements and supplementary" in line.lower().rstrip():
 
                         flag = False
 
                     # Get the time of the filing
                     if "conformed period of report" in line.lower().rstrip():
-                        filingDate = line.lower().split("report: ", 1)[1][:8]
+                        filingDateRaw = line.lower().split("report: ", 1)[1][:8]
+                        filingDate = filingDateRaw[0:4] + "-" + filingDateRaw[4:6] + "-" + filingDateRaw[-2:]
 
 
                 wfile.close()
                 w2.close()
 
-                placeholder = True
                 netIncome = True
 
-                SECInfo = SECInfo.append({"Filing Type": "10-K", "Filing Year": year, "Filing Date": filingDate, "Net Income": netIncome, "MDA Sentiment Analysis": placeholder}, ignore_index=True)
+                SECInfo = SECInfo.append({"Filing Type": "10-K", "Filing Year": year, "Filing Date": filingDate, "Net Income": netIncome, "MDA Sentiment Analysis": sentiment}, ignore_index=True)
 
-            except NotImplementedError:
+            except (NotImplementedError, UnicodeEncodeError) as error:
                 print("not implemented error for " + year)
                 continue
 
@@ -122,6 +146,8 @@ def getFilings(ticker):
 
                 w2 = open(name2, "w")
 
+                sentiment = []
+
                 flag = False
                 for line in w:
 
@@ -132,30 +158,34 @@ def getFilings(ticker):
                             w2.write(line)
                         flag = True
 
-                    if "controls and procedures" in line.lower().rstrip():
+                        pol_score = sid.polarity_scores(line)
+                        sentiment.append(pol_score["compound"])
 
+                    if "controls and procedures" in line.lower() or "in witness whereof" in line.lower() or "item 4." in line.lower():
                         flag = False
 
                     # Get the time of the filing
                     if "conformed period of report" in line.lower().rstrip():
-                        filingDate = line.lower().split("report: ", 1)[1][:8]
+                        filingDateRaw = line.lower().split("report: ", 1)[1][:8]
+                        filingDate = filingDateRaw[0:4] + "-" + filingDateRaw[4:6] + "-" + filingDateRaw[-2:]
 
                 wfile.close()
                 w2.close()
                 SECInfo = SECInfo.append(
                     {"Filing Type": "10-Q", "Filing Year": year, "Filing Date": filingDate, "Net Income": netIncome,
-                     "MDA Sentiment Analysis": placeholder}, ignore_index=True)
+                     "MDA Sentiment Analysis": sentiment}, ignore_index=True)
 
-            except NotImplementedError:
+            except (NotImplementedError, UnicodeEncodeError) as error:
                 w.close()
                 print("not implemented error for " + year)
                 continue
-
-
 
             continue
         else:
             continue
 
+    SECInfo.to_csv("sec_processed_filings/" + ticker + "-SEC-Information.csv")
 
-getFilings("SNAP")
+
+getFilings("DFS")
+
