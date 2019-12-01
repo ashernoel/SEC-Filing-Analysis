@@ -14,7 +14,7 @@ library(tidyverse)
 
 # Set a random seed and shuffle the dataframe 
 set.seed(1234)
-data <- data[sample(1:nrow(data)), ]
+data <- data[sample(1:nrow(data)), ];
 
 
 ## DATA CLEANING:
@@ -35,12 +35,8 @@ stockValues <- data %>%
 
 # Check to see the stock values and the removed stock values from the dataframe
 head(stockValues)
-head(data_stockValuesRemoved)
 
 # 2) Remove redundant information 
-
-# Remove 10-K's to only focus on 10-Qs
-subset(data_stockValuesRemoved, Filing.Type!="10-K")
 
 # Remove non-numeric columns from the dataframe 
 data_numeric <- data_stockValuesRemoved %>%
@@ -49,28 +45,32 @@ data_numeric <- data_stockValuesRemoved %>%
   select(-Filing.Year) %>%
   select(-Filing.Type) %>%
   select(-Unnamed) %>%
-  select(-X)
+  select(-X);
+
+# Remove 10-K's to only focus on 10-Qs
+subset(data_numeric, Filing.Type!="10-K");
+
   
 # 3) Convert the Filing.Date to a number
 YYYYMMDD_to_decimalDate <- function(YYYYMMDD) {
   
   # Convert the YYYY-MM-DD format to a usable string
-  year <- as.integer(substr(YYYYMMDD, start=1, stop=4)) 
-  month <- as.integer(substr(YYYYMMDD, start=6, stop=7))
-  day <- as.integer(substr(YYYYMMDD, start=9, stop=10)) 
+  year <- as.integer(substr(YYYYMMDD, start=1, stop=4));
+  month <- as.integer(substr(YYYYMMDD, start=6, stop=7));
+  day <- as.integer(substr(YYYYMMDD, start=9, stop=10));
   
   # Convert the month and day into an approximate demical representing
   # the progress through the year. 
   decimalDate <- ((month - 1)*30 + day)/365.0 
   
   # Return the time so June 15, 2019 => 2019.5 
-  year + decimalDate
+  year + decimalDate;
   
 }
 
 ## Apply the function to the column and update the original times
-convertedTimes <- sapply(data_numeric$Filing.Date, YYYYMMDD_to_decimalDate)
-data_numeric$Filing.Date <- convertedTimes
+convertedTimes <- sapply(data_numeric$Filing.Date, YYYYMMDD_to_decimalDate);
+data_numeric$Filing.Date <- convertedTimes;
 
 head(data_numeric)
 
@@ -106,13 +106,16 @@ test_data <- data_matrix[-(1:numberOfTrainingEntries),]
 test_labels <- data_labels[-(1:numberOfTrainingEntries)]
 
 # 5) Convert the cleaned matrix to a DMatrix
-
+train_data
+test_data
+train_labels
+test_labels
 dtrain <- xgb.DMatrix(data = train_data, label= train_labels)
 dtest <- xgb.DMatrix(data = test_data, label= test_labels)
 
 #### TRAIN THE MODEL
 model <- xgboost(data = dtrain, # the data   
-                 nround = 2, # max number of boosting iterations
+                 nround = 4, # max number of boosting iterations
                  objective = "reg:linear")  # the objective functi
 
 predictions <- predict(model, dtest)
@@ -127,6 +130,15 @@ xgb.plot.multi.trees(feature_names = names(dtrain),
 
 # Get and plot information about the relative importance of each feature
 importance_matrix <- xgb.importance(names(dtrain), model = model)
+
 xgb.plot.importance(importance_matrix)
+
+# Install and use GGplot
+library(ggplot2)
+# install.packages("Ckmeans.1d.dp")
+xgb.ggplt<-xgb.ggplot.importance(importance_matrix)
+# Make the feature importance graph pretty! 
+xgb.ggplt+theme( text = element_text(size = 20),
+                 axis.text.x = element_text(size = 15, angle = 45, hjust = 1))
 
 
