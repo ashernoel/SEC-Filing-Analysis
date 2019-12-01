@@ -193,10 +193,3 @@ def getFilings(ticker):
     # Convert the large DataFrame we have made to a CSV for later use.
     SECInfo.to_csv("sec_processed_filings/" + ticker + "-SEC-Information.csv")
 
-
-# Dow  = ["MMM", "AAPL", "AXL", "BA", "CAT", "CVX", "CSVO", "KO", "DIS", "DOW", "XOM", "GS", "HD", "IBM", "INTC", "JNJ", "JPM", "MCD", "MRK", "MSFT", "NKE", "PFE", "PG", "TRV", "UTX", "UNH", "VZ", "V", "WMT", "WBA"]
-
-Dow  = ["UTX", "UNH", "VZ", "V", "WMT", "WBA"]
-
-for company in Dow:
-    getFilings(company)

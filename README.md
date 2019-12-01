@@ -5,15 +5,13 @@ This project downloads scraped 10-Q and 10-K files from the SEC website, conduct
 
 My rudimentary algorithm shorted any stock for the three-month period following any 10-Q filing that had a residual less than 1.5 standard deviations below the predicted residual. 
 
-Over the period from January 30, 1995 to November 30, 2019 this algorithm, applied to a uniform bucket of the DOW Jones, **returned 13.11% annually**. 
+The algorithm **returned 12.68% annually** when applied to a uniform bucket of the DOW Jones over the period from January 30, 1995 to November 30, 2019 
 
 The return looks promising, but the method has complications: 
 - Changes in management can greatly affect the style, length, and sentiment of filings
 - Scraping is imperfect and few filings have more text than just the MDA
 - VADER sentiment analysis is less accurate than newer techniques, especially without a robust and accurate dictionary
 - 10-Q Sentiment Residuals showed less length dependence than the Sentiment mean and sum; however, a more robust statistical technique would be preferable.  
-
-10-Q 
 
 ## Getting Started
 

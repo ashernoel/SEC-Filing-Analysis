@@ -223,10 +223,3 @@ def summarizeResults():
     print("Annualized Return Sentiment: " + str(annualizedReturnSent))
     print("Annualized Return Passive: " + str(annualizedReturnPassive))
 
-
-files = ["VZ", "UNH", "UTX", "TRV", "PG", "PFE", "NKE", "MRK", "MCD", "JPM", "JNJ", "INTC", "IBM", "HD", "GS", "XOM", "KO", "CSCO", "CVX", "CAT", "BA", "AAPL", "AXP", "MMM"]
-
-for company in files:
-     plotSentiment(company, "10-Q", "1995-01-30", "2019-11-30")
-
-summarizeResults()
