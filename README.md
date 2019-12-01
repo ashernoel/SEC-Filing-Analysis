@@ -1,16 +1,16 @@
 
 # SEC Equity Analysis
 
-This project downloads scraped 10-Q and 10-K files from the SEC website, conducts VADER sentiment analysis on them with a finance dictionary, calculates the residual of the filing's sentiment based on its length, and then buys or shorts equities based off of those residuals. 
+This project scrapes 10-Q and 10-K files from the SEC website, conducts VADER sentiment analysis on them with a dictionary of financial terms, calculates the residual of the filing's sentiment compared to the predicted sentiment based on its length, and then buys or shorts equities based off of those residuals. 
 
-My rudimentary algorithm shorted any stock for the three-month period following any 10-Q filing that had a residual less than 1.5 standard deviations below the predicted residual. 
+My rudimentary algorithm shorted any stock following any 10-Q filing that had a residual less than 1.5 standard deviations below the predicted residual and bought the stock otherwise. 
 
 The algorithm **returned 12.68% annually** when applied to a uniform bucket of the DOW Jones over the period from January 30, 1995 to November 30, 2019.
 
 The return looks promising, but the method has complications: 
 - Changes in management can greatly affect the style, length, and sentiment of filings; 
-- Scraping is imperfect and few filings have more text than just the MDA; 
-- VADER sentiment analysis is less accurate than newer techniques, especially without a robust and accurate dictionary; and
+- The scraping is imperfect and a few filings have more text than just the MDA; 
+- VADER sentiment analysis is less accurate than newer techniques, such as those utilizing BERT, especially without a robust and accurate dictionary; and
 - 10-Q Sentiment Residuals showed less length dependence than the Sentiment mean and sum; however, a more robust statistical technique would be preferable.  
 
 ## Getting Started
@@ -39,8 +39,6 @@ Run "git clone URL" in terminal to install the repository on your computer. Open
 <img src="images/CATstock.jpeg" width="600"/>
 
 </p>
-
-
 
 ## Built With
 
