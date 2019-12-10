@@ -1,0 +1,226 @@
+
+---
+title: "R Project: SEC Equity Analysis"
+author: "Asher Noel and Kat Zhang"
+date: "12/6/2019"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This project scrapes 10-Q and 10-K files from the SEC website, conducts VADER sentiment analysis on them with a dictionary of financial terms, calculates the residual of the filing's sentiment compared to the predicted sentiment based on its length, and then buys or shorts equities based off of those residuals.
+
+Our rudimentary algorithm shorted any stock following any 10-Q filing that had a residual less than 1.5 standard deviations below the predicted residual and bought the stock otherwise.
+
+The algorithm returned 12.68% annually when applied to a uniform bucket of the DOW Jones over the period from January 30, 1995 to November 30, 2019.
+
+The return looks promising, but the method has complications:
+
+* Changes in management can greatly affect the style, length, and sentiment of filings;
+* The scraping is imperfect and a few filings have more text than just the MDA;
+* VADER sentiment analysis is less accurate than newer techniques, such as those utilizing BERT, especially without a robust and accurate dictionary; and
+* 10-Q Sentiment Residuals showed less length dependence than the Sentiment mean and sum; however, a more robust statistical technique would be preferable.
+
+First, the data (in the form of a csv file) was downloaded and imported into a dataframe.
+
+```{r}
+f <- paste(getwd(), "/SNAP-SEC-Information.csv", sep = ""); f
+data = read.csv(f, header = TRUE)
+```
+
+XGBoost will be used to analyze the SEC data by finding whether there is a relation or not between sentiment and stock price. It is an efficient gradient boost method that helps with classification and regression and can perform predictions.
+
+XGBoost is one implementation of the Gradient Boosted Decision Trees algorithm, which repeatedly makes predictions based on the current model, and then uses the results of said predictions to create a new model.
+
+Tidyverse is an accompanying package that will be used to help clean the data.
+
+```{r ECHO=FALSE}
+# Download and install XGBoost upon first run: install.packages("xgboost")
+# XGBoost is short for eXtreme Gradient Boosting and will find 
+# a relation (or not) between sentiment and stock price
+library(xgboost)
+
+# Downlaod and install tidyverse upon first run: install.packages("tidyverse")
+# Tidyverse has utility functions that help with data cleaning
+library(tidyverse)
+```
+
+First, the data was shuffled by setting a random seed as shown below. This was done to ensure that when the data is split into training and test sets, both sets will be random.
+
+```{r}
+# Set a random seed and shuffle the dataframe 
+set.seed(1234)
+data <- data[sample(1:nrow(data)), ];
+```
+
+Cleaning the data was done as follows: 
+
+* First, remove information about the target variable (the stock value) from the training data so that the prediction is solely based on the model's results and not the target variable's value.
+* Remove redundant information. 
+* Convert categorical information (like "Filing Year") to a numeric format so that it can be analyzed by XGBoost.
+* Split the dataset into testing and training subsets. The model will be trained on the training data and then applied to the testing data to create a prediction for the relationship between sentiment and stock price.
+* Convert the cleaned dataframe to a Dmatrix, according to XGBoost specifications
+
+For step one, the information about the target variable was first removed and then remembered (in order to compare the predictions against the true values).
+```{r}
+# 1a) Remove information about the target variable: stock values
+data_stockValuesRemoved <- data %>%
+  select(-Stock.Values)
+
+# 1b) Remember the target variable for training and testing purposes 
+stockValues <- data %>%
+  select(Stock.Values)
+
+# Check to see the stock values and the removed stock values from the dataframe
+head(stockValues)
+
+```
+The dataset also contained some non-essential information, which was then removed from the dataframe. For instance, the 10-K's were removed, as this project focuses on analyzing the 10-Q's.
+
+Removing this information also ensured that information that is accidentally informative would not be kept in the training set (and thus impact the model's results).
+
+```{r include = FALSE}
+# 2) Remove redundant information 
+
+# Remove 10-K's to only focus on 10-Qs
+subset(data_stockValuesRemoved, Filing.Type!="10-K");
+
+# Remove non-numeric columns from the dataframe 
+data_numeric <- data_stockValuesRemoved %>%
+  select(-MDA.Sentiment.Analysis) %>%
+  select(-Net.Income) %>%
+  select(-Filing.Type) %>%
+  select(-Filing.Year) %>%
+  select(-Unnamed) %>%
+  select(-X);
+```
+
+Then, the filing date was converted into numeric format, using the formula
+
+$$ ((month - 1) * 30 + day)/365 $$
+```{r}
+# 3) Convert the Filing.Date to a number
+YYYYMMDD_to_decimalDate <- function(YYYYMMDD) {
+  
+  # Convert the YYYY-MM-DD format to a usable string
+  year <- as.integer(substr(YYYYMMDD, start=1, stop=4));
+  month <- as.integer(substr(YYYYMMDD, start=6, stop=7));
+  day <- as.integer(substr(YYYYMMDD, start=9, stop=10));
+  
+  # Convert the month and day into an approximate demical representing
+  # the progress through the year. 
+  decimalDate <- ((month - 1)*30 + day)/365.0 
+  
+  # Return the time so June 15, 2019 => 2019.5 
+  year + decimalDate;
+  
+}
+```
+This function was then applied to the dataframe so that the dataframe contains the numeric times.
+
+Then, the size of the dates was reduced by 2000 in order to improve the XGBoost model, as XGBoost works best on sparse matrices, or matrices that have many zeroes in them.
+```{r}
+## Apply the function to the column and update the original times
+convertedTimes <- sapply(data_numeric$Filing.Date, YYYYMMDD_to_decimalDate);
+data_numeric$Filing.Date <- convertedTimes;
+
+head(data_numeric)
+
+## Reduce the size of the dates so that they are a lot smaller
+## This helps regression
+## improve the XGBoost model
+for(i in 1:nrow(data_numeric)) {
+  row <- data_numeric[i,]
+  data_numeric[i,"Filing.Date"] <- row$Filing.Date - 2000
+}
+
+head(data_numeric)
+```
+
+Next, the dataset was split into training and test data, with 70% of the data being used to train and 30% being used to test. 
+
+The training data is used to build the XGBoost model -- as mentioned above, the method that XGBoost uses (gradient boost) improves through training, calculating the error in the predictions, and then altering the model.
+
+This model is then used on the test data.
+
+```{r}
+# 4) Split the dataset!
+
+# Convert the dataframes to tablesa
+data_matrix <- data.matrix(data_numeric)
+data_labels <- data.matrix(stockValues)
+
+# Split the Data into a 70/30 split using our new function
+getNUMEntries <- function(dataframe) {
+  round(nrow(dataframe) * 0.7)
+}
+```
+
+
+```{r}
+numberOfTrainingEntries <- getNUMEntries(stockValues)
+
+# Get the Training Data
+train_data <- data_matrix[1:numberOfTrainingEntries,]
+train_labels <- data_labels[1:numberOfTrainingEntries]
+
+# Get the Testing Data
+test_data <- data_matrix[-(1:numberOfTrainingEntries),]
+test_labels <- data_labels[-(1:numberOfTrainingEntries)]
+```
+
+As a last step, the data was then converted into a DMatrix, a form of sparse matrix used by XGBoost.
+
+```{r}
+# 5) Convert the cleaned matrix to a DMatrix
+train_data
+test_data
+train_labels
+test_labels
+dtrain <- xgb.DMatrix(data = train_data, label= train_labels)
+dtest <- xgb.DMatrix(data = test_data, label= test_labels)
+```
+
+The model was then trained on the training data, and predictions were made on the test data based on this model. 
+
+This was done using the methods xgboost, which trains and creates the model, and predict, which performs predictions on test data.
+
+```{r}
+#### TRAIN THE MODEL
+model <- xgboost(data = dtrain, # the data   
+                 nround = 4, # max number of boosting iterations
+                 objective = "reg:linear")  # the objective functi
+
+predictions <- predict(model, dtest)
+```
+
+This model can be visualized using feature importances, which show numerically how important each feature (each parameter in the original dataframe) was to the classification. In this case, a high number next to the feature indicates that it was important to the prediction.
+
+This visualization was created using the package DiagrammeR, the library ggplot2, and the package Ckmeans.1d.dp.
+
+```{r}
+# Plot a diagram of how much each feature contributes to the model. 
+# A high number next to the feature indicates high contribution!
+# INSTALL PACKAGE install.packages("DiagrammeR")
+xgb.plot.multi.trees(feature_names = names(dtrain), 
+                     model = model)
+
+# Get and plot information about the relative importance of each feature
+importance_matrix <- xgb.importance(names(dtrain), model = model)
+
+xgb.plot.importance(importance_matrix)
+
+# Install and use GGplot
+library(ggplot2)
+# install.packages("Ckmeans.1d.dp")
+xgb.ggplt<-xgb.ggplot.importance(importance_matrix)
+# Make the feature importance graph pretty! 
+xgb.ggplt+theme( text = element_text(size = 20),
+                 axis.text.x = element_text(size = 15, angle = 45, hjust = 1))
+```
+
+# 
