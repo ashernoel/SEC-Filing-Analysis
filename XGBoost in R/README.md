@@ -54,6 +54,7 @@ Total points earned: Minimum(8 + 11 + impressing course staff points, 20) = **Mi
 
 ## YouTube Link to Narrated Script
 
+https://youtu.be/UCGh0L-Bw7c
 
 ## Built With
 
